@@ -3,7 +3,12 @@
 This is a nodejs program that polls the Apigee audit trail, and
 then invokes webhooks with notification of changes.
 
-Today the outbound connections include: slack, google chat, and hipchat.
+Today the outbound connections include: Slack, Google Chat, and Hipchat.
+
+For example, an alert to slack looks like this: 
+
+![screengrab](images/screenshot-20191112-154519.png)
+
 
 Possible extensions include: Microsoft Teams, Splunk log, other logging systems.
 
