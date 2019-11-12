@@ -57,13 +57,20 @@ The contents should be like this:
   },
   "timezone": "America/Los_Angeles",
   "sleepTime" : "10m",
+  "loglevel" : 3,
   "alert" : {
     ...
   }
 }
 ```
 
-Most of that data is self-explanatory. For `auth`, you have some options:
+Some of those fields are self-explanatory.
+
+The `timezone` is optional. It is the zone in which times will be expressed, in outbound
+notifications, to Slack and so on. If you leave it blank, it will default to US
+West-coast time ("America/Los_Angeles").
+
+For `auth`, you have some options:
 
 Option 1: retrieve credentials from .netrc:
 
@@ -107,7 +114,7 @@ Likewise, for hipchat, follow the
 [example](./config/example-config-hipchat.json).
 
 
-The complete configuration file, with the `auth` and `alert` fields, might look like this:
+A complete configuration file, with the required `auth` and `alert` fields, might look like this:
 
 ```json
 {
@@ -130,6 +137,38 @@ The complete configuration file, with the `auth` and `alert` fields, might look 
 ```
 npm run watch
 ```
+
+## Logging
+
+By default, the program will log its operations. That output looks like this:
+
+```
+$ npm run watch
+
+> audit-watcher@1.0.1 watch /Users/dchiesa/dev/node/apigee-audit-watcher
+> node ./auditWatcher.js
+
+[2019-Nov-12 15:27:48] audit watcher version 20191112-0944
+[2019-Nov-12 15:27:48] listening on port 5950
+[2019-Nov-12 15:27:48] log level is: 3
+[2019-Nov-12 15:27:48] POST https://login.apigee.com/oauth/token
+[2019-Nov-12 15:27:49] ==> 200
+[2019-Nov-12 15:27:49] GET https://api.enterprise.apigee.com/v1/audits/organizations/gaccelerate3?expand=true&startTime=1573565269799&endTime=1573601269799
+[2019-Nov-12 15:27:53] ==> 200
+[2019-Nov-12 15:27:53] got 4 records
+[2019-Nov-12 15:27:53] sleeping 1 minute
+[2019-Nov-12 15:27:53] wake at 15:28:53
+[2019-Nov-12 15:28:53] GET https://api.enterprise.apigee.com/v1/audits/organizations/gaccelerate3?expand=true&startTime=1573565333079&endTime=1573601333079
+[2019-Nov-12 15:28:55] ==> 200
+[2019-Nov-12 15:28:55] got 4 records
+[2019-Nov-12 15:28:55] fireWebhooks - no alerts
+[2019-Nov-12 15:28:55] sleeping 1 minute
+[2019-Nov-12 15:28:55] wake at 15:29:55
+...
+```
+
+You can turn logging levels up or down using the `loglevel` property in the
+config.json file.  The default is loglevel = 3.
 
 
 ## Bugs

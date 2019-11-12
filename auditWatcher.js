@@ -25,7 +25,7 @@
 // See the README.md for more information.
 //
 // created: Wed Dec  2 17:23:33 2015
-// last saved: <2019-November-12 15:06:46>
+// last saved: <2019-November-12 15:42:14>
 
 /* global process console Buffer */
 /* jshint node:true, esversion:9, strict:implied */
@@ -881,6 +881,9 @@ app.listen(port, function() {
   log.write(0, `listening on port ${port}`);
   log.write(0, `log level is: ${gStatus.loglevel}`);
   gConfig = JSON.parse(fs.readFileSync(path.join('config', 'config.json'), 'utf8'));
+  if (gConfig.hasOwnProperty('loglevel')) {
+    gStatus.loglevel = gConfig.loglevel;
+  }
   gTz = gConfig.timezone || 'America/Los_Angeles';
   setTimeout(startCycle, 1);
 });
