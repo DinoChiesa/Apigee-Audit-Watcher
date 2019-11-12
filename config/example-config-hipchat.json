@@ -1,0 +1,21 @@
+{
+  "organization": "edge-org-to-monitor-here",
+  "auth" : {
+    "username": "email-of-readonly-admin@example.com",
+    "password" : "Secret123"
+  },
+  "timezone": "America/Los_Angeles",
+  "sleepTime" : "10m",
+  "alert" : {
+    "type" : "hipchat",
+    "uri" : "https://api.hipchat.com/v2/room/bot-testing/notification",
+    "template" : {
+      "message" : "Apigee Admin Alert:\n%message%",
+      "message_format" : "text",
+      "color" : "yellow"
+    },
+    "headers" : {
+      "authorization": "Bearer YOUR-OAuthToken-for-Hipchat-Here"
+    }
+  }
+}

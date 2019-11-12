@@ -1,0 +1,12 @@
+{
+  "organization": "orgname",
+  "auth" : {
+    "username": "email-of-readonly-admin@example.com",
+    "password" : "Secret123"
+  },
+  "sleepTime" : "10m",
+  "alert" : {
+    "type" : "googlechat",
+    "uri" : "https://chat.googleapis.com/v1/spaces/ROOMID/messages?key=KEY&token=TOKEN"
+  }
+}
