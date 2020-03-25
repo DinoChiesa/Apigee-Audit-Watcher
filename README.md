@@ -99,6 +99,13 @@ For `auth`, you have some options:
     },
   ```
 
+The `sleepTime` specifies the amount of time the script should wait before
+polling the audit trail. The `sleepTime` can be expressed as a number followed
+by a letter to indicate the timeunit as seconds, minutes, hours.  For example,
+`1h` is one hour, `4m` is 4 minutes. The sleepTime should not be more than 10
+hours. (For now the lookback is hardcoded at 10 hours; so if you configure the
+script to wait longer than 10 hours then this script will miss audit records.)
+
 For the `alert` you have several options: `slack`, `googlechat`, or `hipchat`.
 
 To set up slack, you need to visit the [webhooks
