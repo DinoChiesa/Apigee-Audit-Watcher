@@ -25,7 +25,7 @@
 // See the README.md for more information.
 //
 // created: Wed Dec  2 17:23:33 2015
-// last saved: <2019-November-12 15:42:14>
+// last saved: <2020-March-25 16:07:38>
 
 /* global process console Buffer */
 /* jshint node:true, esversion:9, strict:implied */
@@ -62,7 +62,7 @@ var defaults = {
     };
 
 var gStatus = {
-      version : '20191112-0944',
+      version : '20200325-1559',
       times : {
         start : moment().tz('GMT').format()
       },
@@ -72,7 +72,7 @@ var gStatus = {
       alertCounts : { total: 0 }
     };
 
-var log = new Logger(gStatus);
+const log = new Logger(gStatus);
 
 function getType(obj) {
   return Object.prototype.toString.call(obj);
@@ -396,11 +396,14 @@ const messageProducers = {
 //   return edgeAuthHeader;
 // }
 
-function simplePluralize(count, phrase) {
+function maybeSingularize(count, phrase) {
   if (count !== 1) return phrase;
   let words = phrase.split(' ');
   if ( words[words.length-2].endsWith('xies')) {
     words[words.length-2] = words[words.length-2].replace(new RegExp('xies$'),'xy');
+  }
+  else if ( words[words.length-2].endsWith('tries')) {
+    words[words.length-2] = words[words.length-2].replace(new RegExp('tries$'),'try');
   }
   else {
     words[words.length-2] =  words[words.length-2].replace(new RegExp('s$'),'');
@@ -430,27 +433,35 @@ const resolveFns = {
                                   (c.alert && c.alert.user) || '-unk-');
         return c;
       },
-      resolveDeveloperName : function (c) {
+      developerName : function (c) {
         c.elaborations += sprintf('\u2022 %s (user:%s)\n', c.match[2], c.alert.user);
         return c;
       },
-      resolveApiProxyRevision : function (c) {
+        envScopedKvm : function(c) {
+          c.elaborations += sprintf('\u2022 %s (env:%s user:%s)\n', c.match[3], c.match[2], c.alert.user);
+          return c;
+        },
+        envScopedKvmEntry : function(c) {
+          c.elaborations += sprintf('\u2022 %s (env:%s entry:%s user:%s)\n', c.match[3], c.match[2], c.match[4], c.alert.user);
+          return c;
+        },
+      apiProxyRevAndEnvironment : function (c) {
         c.elaborations += sprintf('\u2022 %s (rev:%s env:%s user:%s)\n', c.match[3], c.match[4], c.match[2], c.alert.user);
         return c;
       },
-      resolveApiProxyRevision2 : function (c) {
+      apiProxyNameAndRev : function (c) {
         c.elaborations += sprintf('\u2022 %s (rev:%s user:%s)\n', c.match[2], c.match[3], c.alert.user);
         return c;
       },
-      resolveProxyName : function (c) {
+      apiProxyName : function (c) {
         c.elaborations += sprintf('\u2022 %s (user:%s)\n', c.match[2], c.alert.user);
         return c;
       },
-      resolveApiProduct : function(c) {
+      apiProductName : function(c) {
         c.elaborations += sprintf('\u2022 %s (user:%s)\n', c.match[2], c.alert.user);
         return c;
       },
-      resolveReportName : function(c) {
+      reportName : function(c) {
         // TODO: use a cache here
         return setApigeeAuthHeader(c)
           .then(() => new Promise((resolve, reject) => {
@@ -484,11 +495,11 @@ const resolveFns = {
             });
           }));
       },
-      resolveDeletedReportName : function(c) {
+      deletedReportName : function(c) {
         c.elaborations += sprintf('\u2022 %s (user:%s)\n', c.match[2], c.alert.user);
         return c;
       },
-      resolveTraceSession : function(c) {
+      traceSession : function(c) {
         c.elaborations += sprintf('\u2022 proxy:%s (rev:%s env:%s user:%s)\n', c.match[3], c.match[4], c.match[2], c.alert.user);
         return c;
       }
@@ -502,7 +513,7 @@ function gatherElaborations(context) {
   // {
   //   "operation": "CREATE",
   //   "request": "''Prod2''",
-  //   "requestUri": "/v1/organizations/cap250/developers/W35yptYHyVyBjloZ/apps/gd1/keys/TLRc5m0Zv0cSD1MAoei6eQKhevgE3OGy/apiproducts/Prod2?action=approve",
+  //   "requestUri": "/v1/organizations/org-name/developers/W35yptYHyVyBjloZ/apps/gd1/keys/TLRc5m0Zv0cSD1MAoei6eQKhevgE3OGy/apiproducts/Prod2?action=approve",
   //   "responseCode": "204",
   //   "timeStamp": 1449688834257,
   //   "user": "DChiesa@apigee.com"
@@ -510,7 +521,7 @@ function gatherElaborations(context) {
   // {
   //    "operation": "CREATE",
   //    "request": "''ap-parityapi''",
-  //    "requestUri": "/v1/organizations/ap-parityapi/reports/aa35a9f8-79dc-4d3c-be66-07140612eb1e/",
+  //    "requestUri": "/v1/organizations/org-name/reports/aa35a9f8-79dc-4d3c-be66-07140612eb1e/",
   //    "responseCode": "201",
   //    "timeStamp": 1455046522101,
   //    "user": "DChiesa@apigee.com"
@@ -518,20 +529,20 @@ function gatherElaborations(context) {
   // {
   //    "operation": "CREATE",
   //    "request": "''ap-parityapi''",
-  //    "requestUri": "/v1/organizations/ap-parityapi/environments/main/apis/parity-test14/revisions/20/debugsessions/1455043863266/?session=1455043863266&timeout=600",
+  //    "requestUri": "/v1/organizations/org-name/environments/main/apis/proxy-name/revisions/20/debugsessions/1455043863266/?session=1455043863266&timeout=600",
   //    "responseCode": "201",
   //    "timeStamp": 1455043864283,
-  //    "user": "gdingle-cw@starbucks.com"
+  //    "user": "gdingle-cw@example.com"
   // },
 
   // each check is a string in 4 parts, joined by |
   //  0. verb
   //  1. status code
   //  2. path regex
-  //  3. the sentence fragment in plural form
+  //  3. the artifact name in plural form
   //  4. (optional) the name of the fn to invoke
   //
-  // optionally, the 4th item is the name of a function that is
+  // the optional 4th item is the name of a function that is
   //    called to provide additional details about the item. The function gets
   //    called with the context, containing the alert, and the regex match
   //    result.  This fn should append to c.elaborations with details about
@@ -544,63 +555,72 @@ function gatherElaborations(context) {
         'CREATE|204|/developers/([^/]+)/apps/([^/]+)/keys/([^/]+)/apiproducts/([^/]+)\\?action=approve$|dev app keys approved|developerAppKeyAction' ,
         'CREATE|204|/developers/([^/]+)/apps/([^/]+)/keys/([^/]+)/apiproducts/([^/]+)\\?action=revoke$|dev app keys revoked|developerAppKeyAction' ,
         'UPDATE|200|/developers/([^/]+)/apps/([^/]+)/keys/([^/]+)$|developer app keys updated|developerAppDetails',
-        'CREATE|201|/developers/([^/]+)/$|devs created|resolveDeveloperName',
-        'DELETE|200|/developers/([^/]+)$|devs deleted|resolveDeveloperName',
-        'UPDATE|200|/developers/([^/]+)$|developers updated|resolveDeveloperName',
-        'CREATE|204|/developers/([^/]+)\\?action=active$|devs activated|resolveDeveloperName',
-        'DELETE|200|/e/([^/]+)/apis/([^/]+)/revisions/([0-9]+)/deployments$|proxies undeployed|resolveApiProxyRevision',
-        'DELETE|200|/apis/([^/]+)/revisions/([0-9]+)$|proxy revisions deleted|resolveApiProxyRevision2',
-        'CREATE|200|/e/([^/]+)/apis/([^/]+)/revisions/([0-9]+)/deployments$|proxies deployed|resolveApiProxyRevision',
-        'CREATE|201|/apis/([^/]+)/\\?action=import&name=([^&/]+)$|proxies imported|resolveProxyName',
-        'UPDATE|200|/apis/([^/]+)/revisions/([0-9]+)\\?validate=true$|proxies updated|resolveProxyName',
-        'DELETE|200|/apis/([^/]+)$|APIs deleted|resolveProxyName',
-        'CREATE|201|/apiproducts/([^/]+)/$|api products created|resolveApiProduct',
-        'UPDATE|200|/apiproducts/([^/]+)$|api products updated|resolveApiProduct',
-        'DELETE|200|/apiproducts/([^/]+)$|api products deleted|resolveApiProduct',
-        'CREATE|201|/reports/([^/]+)/$|AX reports created|resolveReportName',
-        'UPDATE|200|/reports/([^/]+)$|AX reports updated|resolveReportName',
-        'DELETE|200|/reports/([^/]+)$|AX reports deleted|resolveDeletedReportName',
-        'CREATE|201|/environments/([^/]+)/apis/([^/]+)/revisions/([0-9]+)/debugsessions/([0-9]+)/\\?|Trace sessions created|resolveTraceSession',
-        'DELETE|200|/environments/([^/]+)/apis/([^/]+)/revisions/([0-9]+)/debugsessions/([0-9]+)$|Trace sessions deleted|resolveTraceSession'
+        'CREATE|201|/developers/([^/]+)/$|devs created|developerName',
+        'DELETE|200|/developers/([^/]+)$|devs deleted|developerName',
+        'UPDATE|200|/developers/([^/]+)$|developers updated|developerName',
+        'CREATE|204|/developers/([^/]+)\\?action=active$|devs activated|developerName',
+
+        'CREATE|201|/environments/([^/]+)/keyvaluemaps/([^/]+)/$|env-scoped kvms created|envScopedKvm',
+        'DELETE|200|/environments/([^/]+)/keyvaluemaps/([^/]+)$|env-scoped kvms deleted|envScopedKvm',
+        'CREATE|201|/environments/([^/]+)/keyvaluemaps/([^/]+)/entries/([^/]+)/$|kvm entries created|envScopedKvmEntry',
+        'UPDATE|200|/environments/([^/]+)/keyvaluemaps/([^/]+)/entries/([^/]+)$|kvm entries updated|envScopedKvmEntry',
+        'DELETE|200|/environments/([^/]+)/keyvaluemaps/([^/]+)/entries/([^/]+)$|kvm entries deleted|envScopedKvmEntry',
+
+        'DELETE|200|/e/([^/]+)/apis/([^/]+)/revisions/([0-9]+)/deployments$|proxies undeployed|apiProxyRevAndEnvironment',
+        'CREATE|200|/e/([^/]+)/apis/([^/]+)/revisions/([0-9]+)/deployments$|proxies deployed|apiProxyRevAndEnvironment',
+        'DELETE|200|/apis/([^/]+)/revisions/([0-9]+)$|proxy revisions deleted|apiProxyNameAndRev',
+        'CREATE|201|/apis/([^/]+)/\\?action=import&name=([^&/]+)$|proxies imported|apiProxyName',
+        'UPDATE|200|/apis/([^/]+)/revisions/([0-9]+)\\?validate=true$|proxies updated|apiProxyNameAndRev',
+        'DELETE|200|/apis/([^/]+)$|APIs deleted|apiProxyName',
+
+        'CREATE|201|/apiproducts/([^/]+)/$|api products created|apiProductName',
+        'UPDATE|200|/apiproducts/([^/]+)$|api products updated|apiProductName',
+        'DELETE|200|/apiproducts/([^/]+)$|api products deleted|apiProductName',
+
+        'CREATE|201|/reports/([^/]+)/$|AX reports created|reportName',
+        'UPDATE|200|/reports/([^/]+)$|AX reports updated|reportName',
+        'DELETE|200|/reports/([^/]+)$|AX reports deleted|deletedReportName',
+
+        'CREATE|201|/environments/([^/]+)/apis/([^/]+)/revisions/([0-9]+)/debugsessions/([0-9]+)/\\?|Trace sessions created|traceSession',
+        'DELETE|200|/environments/([^/]+)/apis/([^/]+)/revisions/([0-9]+)/debugsessions/([0-9]+)$|Trace sessions deleted|traceSession'
       ];
 
   context.elaborations = '';
-  var promise = Promise.resolve(context);
+  let p = Promise.resolve(context);
   checks.forEach(function(check){
-    var parts = check.split('|');
-    var fkey = parts[4];
-    log.write(8, sprintf('check(%s) fn:%s', parts[3], fkey));
-    var re = new RegExp(s1 + parts[2]);
-    var arr = [];
-    var found = context.filteredAlerts.filter(function(alert){
+    let parts = check.split('|'),
+        resolverName = parts[4];
+    log.write(8, sprintf('check(%s) fn:%s', parts[3], resolverName));
+    let re = new RegExp(s1 + parts[2]),
+        detailCalls = [],
+        found = context.filteredAlerts.filter(function(alert){
           if (alert.operation != parts[0]) return false;
           if (alert.responseCode != parts[1]) return false;
-          var m = alert.requestUri.match(re);
+          let m = alert.requestUri.match(re);
           if (!m) return false; // this alert is not this check
-          if (fkey) {
+          if (resolverName) {
             // the calls to get details must all be asynchronous
-            arr.push({alert:alert, match:m});
+            detailCalls.push({alert:alert, match:m});
           }
           return true;
         });
 
     if (found && found.length > 0) {
-      promise = promise.then(function(c){
-        c.elaborations += found.length + ' ' + simplePluralize(found.length, parts[3]) + '\n';
+      p = p.then( c => {
+        c.elaborations += found.length + ' ' + maybeSingularize(found.length, parts[3]) + '\n';
         return c;
       });
 
-      // get detail if any
-      if (arr.length>0) {
-        arr.forEach(function (item) {
-          promise = promise
-            .then(function(c){c.match = item.match; c.alert = item.alert; return c;})
-            .then(resolveFns[fkey]);
+      // stack up promises to get details
+      if (detailCalls.length>0) {
+        detailCalls.forEach( item => {
+          p = p.then( c => {c.match = item.match; c.alert = item.alert; return c;})
+            .then(resolveFns[resolverName]);
         });
       }
     }
   });
-  return promise;
+  return p;
 }
 
 
