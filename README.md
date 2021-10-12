@@ -187,6 +187,7 @@ $ npm run watch
 * The tool can watch only a single organization
 
 * There is no good way to provide credentials beyond using .netrc. A good way to
-  solve this is to run this as an appengine app and use a service-account with
-  implicit access to the Apigee org, but that works only in Apigee ng SaaS or Apigee
-  hybrid.
+  solve this would be to run this as an appengine app and use a service-account
+  with implicit access to the Apigee org. But Service Accounts work only in
+  Apigee X or Apigee hybrid. And in X or hybrid, we have eventarc for triggering
+  events from Apigee, so the need for this watcher script may be lower.
