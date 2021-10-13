@@ -15,6 +15,7 @@
 //   "auth" : {
 //     "netrc" : true
 //   },
+//   "loglevel" : 0,
 //   "alert" : {
 //     "type" : "slack",
 //     "iconUrl" : "https://url.to/image/for/slackpost",
@@ -25,7 +26,7 @@
 // See the README.md for more information.
 //
 // created: Wed Dec  2 17:23:33 2015
-// last saved: <2020-March-25 16:07:38>
+// last saved: <2021-October-12 17:30:52>
 
 /* global process console Buffer */
 /* jshint node:true, esversion:9, strict:implied */
@@ -33,9 +34,11 @@
 const qs = require ('querystring'),
       fs = require('fs'),
       os = require('os'),
-      netrc = require('netrc'),
       path = require('path'),
       util = require('util'),
+      apigeejs   = require('apigee-edge-js'),
+      utility     = apigeejs.utility,
+      apigee     = apigeejs.apigee,
       timeResolver = require('./timeResolver.js'),
       handlebars = require('handlebars'),
       moment = require('moment-timezone'),
@@ -44,28 +47,32 @@ const qs = require ('querystring'),
       sprintf = require("sprintf-js").sprintf,
       app = require('express')(),
       Logger = require('./simplelogger.js'),
+      Getopt     = require('node-getopt'),
+      getopt     = new Getopt(utility.commonOptions).bindHelp(),
       oneDayInMilliseconds = 60 * 60 * 24 * 1000,
+      oneMinuteInMilliseconds = 60 * 1 * 1000,
+      tenMinutesInMilliseconds = 60 * 10 * 1000,
       tenHoursInMilliseconds = 60 * 60 * 10 * 1000,
-      lookbackInterval = tenHoursInMilliseconds,
       runtimeGracePeriodSeconds = 240,
       apiBase = 'https://api.enterprise.apigee.com',
-      loginBaseUrl = 'https://login.apigee.com', // will vary if SSO is used
-      defaultBasicAuthBlobForApigeeLogin = 'ZWRnZWNsaTplZGdlY2xpc2VjcmV0',
       auditBase = apiBase + '/v1/audits/organizations/',
-      dateformat = 'YYYY MMMM D H:mm:ss';
+      dateformat = 'YYYY MMMM D H:mm:ss',
+      version = '20211012-1632';
 
-var gConfig;
-var gTz;
-var previousAuditRecords;
-var defaults = {
+let lookbackInterval = tenHoursInMilliseconds;
+let gConfig;
+let gTz;
+let previousAuditRecords;
+let defaults = {
       iconUrl: 'https://yt3.ggpht.com/a/AGF-l7_ahLayWFLAgeXEVNG3LC8il4bAfMq-wOLqHw=s900-c-k-c0xffffffff-no-rj-mo'
     };
 
-var gStatus = {
-      version : '20200325-1559',
+let gStatus = {
+      version,
       times : {
         start : moment().tz('GMT').format()
       },
+      nCycles : 0,
       nRequests : 0,
       status : 'none',
       loglevel: 3,  // higher means more logging
@@ -142,74 +149,10 @@ function enhanceTokenResponse(tokenResponse) {
   return tokenResponse;
 }
 
-
-function invokeApigeeTokenEndpoint(ctx) {
-  return new Promise((resolve, reject) => {
-    let formparams = ctx.authformparams,
-        requestOptions = {
-          headers: {
-            'content-type': 'application/x-www-form-urlencoded',
-            'Authorization' : 'Basic ' + defaultBasicAuthBlobForApigeeLogin
-          },
-          method: 'post',
-          body : qs.stringify(formparams),
-          uri : loginBaseUrl + '/oauth/token'
-        };
-
-    request(requestOptions, function(e, httpResp, body) {
-      if (e) {
-        log.write(0, 'ERROR %s during POST %s', e.message, requestOptions.url);
-        return reject(e);
-      }
-      if (httpResp.statusCode != 200) {
-        return reject(new Error(`non-success status code ${httpResp.statusCode}`));
-      }
-
-      body = JSON.parse(body);
-      if (body.access_token) {
-        gConfig.auth.tokenResponse = enhanceTokenResponse(body);
-        gConfig.auth.authzHeader = 'Bearer ' + body.access_token;
-        delete ctx.authformparams;
-        return resolve(ctx);
-      }
-
-      log.write(1, "body: " + JSON.stringify(body));
-      return reject(new Error("invalid token response"));
-    });
-  });
-}
-
-
 function setApigeeAuthHeader(ctx) {
-  if ( ! gConfig.auth.authzHeader || !gConfig.auth.tokenResponse) {
-    ctx.authformparams = {
-      grant_type : 'password',
-      username : gConfig.auth.username,
-      password : gConfig.auth.password
-    };
-    return invokeApigeeTokenEndpoint(ctx);
-  }
-
-  let t = gConfig.auth.tokenResponse,
-  epochSecondsNow = (new Date()).valueOf() / 1000;
-  if (t.expires > epochSecondsNow + runtimeGracePeriodSeconds) {
-    return Promise.resolve(ctx);
-  }
-
-  // The token is expired or will expire shortly; get a new one.
-  if ( ! t.refresh_token) {
-    console.log('No refresh token. Exiting.');
-    process.exit(4);
-  }
-
-  ctx.authformparams = {
-    grant_type : 'refresh_token',
-    refresh_token: t.refresh_token
-  };
-  return invokeApigeeTokenEndpoint(ctx);
+  gConfig.apigeeAuthHeader = 'Bearer ' + gConfig.apigeeToken.access_token;
+  return Promise.resolve({});
 }
-
-
 
 const messageProducers = {
         googlechat: function produceMessageForGoogleChat(context) {
@@ -471,7 +414,7 @@ const resolveFns = {
                 uri: apiBase + '/v1/o/'+ gConfig.organization + '/reports/' + match[2],
                 method: 'get',
                 headers: {
-                  'authorization' : gConfig.auth.authzHeader,
+                  'authorization' : gConfig.apigeeAuthHeader,
                   'accept' : 'application/json',
                   'user-agent' : 'audit-watcher-1'
                 }
@@ -679,35 +622,13 @@ function fireWebhooks(context) {
     });
 }
 
-function getApigeeAuthn(ctx) {
-  if ( ! gConfig.auth) {
-    console.log('no authentication provided in config.json; exiting.');
-    process.exit(1);
-  }
-
-  if (gConfig.auth.netrc) {
-    let authUrl = require('url').parse(apiBase),
-        rc = netrc();
-
-    if ( ! rc[authUrl.hostname]) {
-      console.log(`there is no entry for the management server (${apiBase}) in in the .netrc file.`);
-      process.exit(2);
-    }
-    gConfig.auth.username = rc[authUrl.hostname].login;
-    gConfig.auth.password = rc[authUrl.hostname].password;
-    // let authzHeader = "Basic " + new Buffer(username + ":" + password)
-    //     .toString("base64");
-    return ctx;
-  }
-
-  console.log(`No way to authenticate to Apigee. Exiting.`);
-  process.exit(3);
-}
-
-
 function getAudits(ctx) {
   // eg,
-  // curl -i -n "https://api.enterprise.apigee.com/v1/audits/organizations/cap250?endTime=1449105607514&expand=true&startTime=1446513607514"
+  // curl -i -n "https://api.enterprise.apigee.com/v1/audits/organizations/ORG1?endTime=1449105607514&expand=true&startTime=1446513607514"
+
+  if (gStatus.nCycles > 0) {
+    lookbackInterval = gConfig.sleepTime + oneMinuteInMilliseconds;
+  }
 
   return setApigeeAuthHeader(ctx)
     .then(() => new Promise( (resolve, reject) => {
@@ -722,7 +643,7 @@ function getAudits(ctx) {
             uri: auditBase + gConfig.organization + '?' + qs.stringify(query),
             method: 'get',
             headers: {
-              'authorization' : gConfig.auth.authzHeader,
+              'authorization' : gConfig.apigeeAuthHeader,
               'accept' : 'application/json',
               'user-agent' : 'audit-watcher-1'
             }
@@ -821,24 +742,39 @@ function filterNewResults(context) {
   return context;
 }
 
+function initialize(opt) {
+  return apigee.connect(utility.optToOptions(opt))
+    .then( org =>
+         org.conn
+         .getExistingToken()
+           .then( token => {
+             console.log('existing token: ' + util.format(token));
+             gConfig.apigeeOrg = org;
+             gConfig.apigeeToken = token;
+           }))
+    .then(startCycle);
+}
 
 function startCycle() {
-    Promise.resolve({})
-      .then(getApigeeAuthn)
-      .then(getAudits)
-      .then(filterNewResults)
-      .then(fireWebhooks)
-      .then(setWakeup)
-      .catch( e => {
-        log.write(1,'unhandled error: ' + e);
-        log.write(1, e.stack);
-      });
+  gConfig.apigeeOrg.conn.refreshToken( gConfig.apigeeToken )
+    .then(token => gConfig.apigeeToken = token)
+    .then(setApigeeAuthHeader)
+    .then(getAudits)
+    .then(filterNewResults)
+    .then(fireWebhooks)
+    .then(setWakeup)
+    .catch( e => {
+      log.write(1,'unhandled error: ' + e);
+      log.write(1, e.stack);
+    });
 }
 
 function setWakeup(context) {
-  var now = new Date();
+  gStatus.nCycles++;
+
+  let now = new Date();
   if ( ! gConfig.sleepTime) {
-    gConfig.sleepTime = 600000;
+    gConfig.sleepTime = tenMinutesInMilliseconds;
     let phrase = timeResolver.timeIntervalToPhrase(gConfig.sleepTime);
     log.write(2, `defaulting to sleep time of ${phrase}`);
   }
@@ -869,11 +805,16 @@ function setWakeup(context) {
   return context;
 }
 
-
+function validateConfig() {
+  if ( ! gConfig.organization) {
+    console.log('missing configuration: organization');
+    process.exit(1);
+  }
+  // TODO: add more validations here
+}
 
 // ================================================================
 // Server interface
-
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -882,8 +823,8 @@ app.get('/status', function(request, response) {
   gStatus.times.current = moment().tz('GMT').format();
   gStatus.nRequests++;
 
-    response.status(200)
-      .send(JSON.stringify(gStatus, null, 2) + "\n");
+  response.status(200)
+    .send(JSON.stringify(gStatus, null, 2) + "\n");
 });
 
 
@@ -901,9 +842,13 @@ app.listen(port, function() {
   log.write(0, `listening on port ${port}`);
   log.write(0, `log level is: ${gStatus.loglevel}`);
   gConfig = JSON.parse(fs.readFileSync(path.join('config', 'config.json'), 'utf8'));
+  validateConfig();
+  let args = [ "-o " + gConfig.organization ].concat(process.argv.slice(2));
+  let opt = getopt.parse(args);
+  utility.verifyCommonRequiredParameters(opt.options, getopt);
   if (gConfig.hasOwnProperty('loglevel')) {
     gStatus.loglevel = gConfig.loglevel;
   }
   gTz = gConfig.timezone || 'America/Los_Angeles';
-  setTimeout(startCycle, 1);
+  setTimeout(() => initialize(opt), 1);
 });

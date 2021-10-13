@@ -58,9 +58,6 @@ The contents should be like this:
 ```json
 {
   "organization": "my-org-name",
-  "auth" : {
-    ...
-  },
   "timezone": "America/Los_Angeles",
   "sleepTime" : "10m",
   "loglevel" : 3,
@@ -75,29 +72,6 @@ Some of those fields are self-explanatory.
 The `timezone` is optional. It is the zone in which times will be expressed, in outbound
 notifications, to Slack and so on. If you leave it blank, it will default to US
 West-coast time ("America/Los_Angeles").
-
-For `auth`, you have some options:
-
-1. retrieve credentials from .netrc:
-
-   ```
-     "auth" : {
-       "netrc" : true
-     },
-   ```
-
-   This tells the program to look in the ~/.netrc file for credentials for
-   api.enterprise.apigee.com , and use _those_ credentials to authenticate to
-   Apigee.
-
-2. directly store the credentials in the config.json file:
-
-  ```
-    "auth" : {
-      "username" : "myuser@example.com",
-      "password" : "Secret123"
-    },
-  ```
 
 The `sleepTime` specifies the amount of time the script should wait before
 polling the audit trail. The `sleepTime` can be expressed as a number followed
@@ -126,14 +100,11 @@ Likewise, for hipchat, follow the
 [example](./config/example-config-hipchat.json).
 
 
-A complete configuration file, with the required `auth` and `alert` fields, might look like this:
+A complete configuration file, with the required and `alert` fields, might look like this:
 
 ```json
 {
   "organization": "my-org-name",
-  "auth" : {
-    "netrc": true
-  },
   "timezone": "America/Los_Angeles",
   "sleepTime" : "10m",
   "alert" : {
@@ -146,14 +117,22 @@ A complete configuration file, with the required `auth` and `alert` fields, migh
 
 ## 3. Run the program
 
+You will need to specify options for connecting to Apigee. Specifically the authentication mechanism.
+Use one of these options:
+* `-n` to specify to retrieve username and password from the local .netrc file
+* `-u USERNAME` to specify a username
+* `-p PASSWORD` to specify a password.  This only works if you specify `-u`. Not always required though.
+* `-C CODE` to specify a one-time passcode, possibly for use with -n or -u
+* `-Z ZONE` to specify a zone-name, for Apigee SSO.
+
 ```
-npm run watch
+npm run watch -- <OPTIONS>
 ```
 
 ## Logging
 
 By default, the program will log its operations. You can increase or decrease
-the level of logging with the `loglevel` setting in the config.json file. 
+the level of logging with the `loglevel` setting in the config.json file.
 
 The output at loglevel=3 looks like this:
 
@@ -182,9 +161,26 @@ $ npm run watch
 ...
 ```
 
+## How does it work?
+
+The tool polls the audit trail for an Apigee Edge organization, available at
+https://api.enterprise.apigee.com/v1/audits/organizations/ORGNAME .  It passes
+the expand=true and a startTime and endTime parameter to limit the records
+returned.  The watcher is set to run every 10 minutes, or a configurable time
+that you specify.  It searches back over a period just longer than that cycle
+time. Finding auditable events, it notifies the configured channel (slack,
+google chat, etc).
+
+
 ## Bugs
 
-* The tool can watch only a single organization
+* The tool can watch only a single Apigee organization.
+
+* You cannot provide the path to config.json in the command line.
+
+* The tool cannot post to a MS Teams channel. This feature gap exists because I could not find a documented API for MS Teams.
+
+* The tool depends on express and request modules, which are unnecessary.
 
 * There is no good way to provide credentials beyond using .netrc. A good way to
   solve this would be to run this as an appengine app and use a service-account
