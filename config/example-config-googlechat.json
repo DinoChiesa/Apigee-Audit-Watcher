@@ -1,9 +1,4 @@
 {
-  "organization": "orgname",
-  "auth" : {
-    "username": "email-of-readonly-admin@example.com",
-    "password" : "Secret123"
-  },
   "sleepTime" : "10m",
   "alert" : {
     "type" : "googlechat",

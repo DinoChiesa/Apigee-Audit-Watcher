@@ -1,10 +1,6 @@
 {
-  "organization": "edge-org-to-monitor-here",
-  "auth" : {
-    "username": "email-of-readonly-admin@example.com",
-    "password" : "Secret123"
-  },
   "sleepTime" : "10m",
+  "loglevel" : 3,
   "alert" : {
     "type" : "slack",
     "uri" : "https://hooks.slack.com/services/YOUR/URL/HERE/SEE/README"

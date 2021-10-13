@@ -50,14 +50,14 @@ npm install
 Provide a file in the config directory named `config.json`.
 This file tells the program:
 
-* which Apigee organization to watch
 * how often to check the audit trail for updates (typically 10 minutes)
 * where to post notification of any observed updates
+* how to format the messages (specifically timezone)
+* whether to log its activity to console
 
 The contents should be like this:
 ```json
 {
-  "organization": "my-org-name",
   "timezone": "America/Los_Angeles",
   "sleepTime" : "10m",
   "loglevel" : 3,
@@ -100,11 +100,10 @@ Likewise, for hipchat, follow the
 [example](./config/example-config-hipchat.json).
 
 
-A complete configuration file, with the required and `alert` fields, might look like this:
+A complete configuration file might look like this:
 
 ```json
 {
-  "organization": "my-org-name",
   "timezone": "America/Los_Angeles",
   "sleepTime" : "10m",
   "alert" : {
@@ -117,16 +116,24 @@ A complete configuration file, with the required and `alert` fields, might look 
 
 ## 3. Run the program
 
-You will need to specify options for connecting to Apigee. Specifically the authentication mechanism.
+```
+npm run watch -- <OPTIONS>
+```
+
+You will need to specify options for connecting to Apigee. Specifically the organization name, and the authentication credentials.
 Use one of these options:
-* `-n` to specify to retrieve username and password from the local .netrc file
-* `-u USERNAME` to specify a username
+* `-o ORG` - the organization name. Required.
+* `-n` to specify to retrieve username and password from the local .netrc file. Optional.
+* `-u USERNAME` to specify a username. Optional.
 * `-p PASSWORD` to specify a password.  This only works if you specify `-u`. Not always required though.
 * `-C CODE` to specify a one-time passcode, possibly for use with -n or -u
 * `-Z ZONE` to specify a zone-name, for Apigee SSO.
+* `-v` for verbose mode
+
+Example:
 
 ```
-npm run watch -- <OPTIONS>
+npm run watch -- -o my-org-name -n -v
 ```
 
 ## Logging
@@ -173,8 +180,6 @@ google chat, etc).
 
 
 ## Bugs
-
-* The tool can watch only a single Apigee organization.
 
 * You cannot provide the path to config.json in the command line.
 

@@ -1,9 +1,4 @@
 {
-  "organization": "edge-org-to-monitor-here",
-  "auth" : {
-    "username": "email-of-readonly-admin@example.com",
-    "password" : "Secret123"
-  },
   "timezone": "America/Los_Angeles",
   "sleepTime" : "10m",
   "alert" : {

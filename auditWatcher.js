@@ -26,7 +26,7 @@
 // See the README.md for more information.
 //
 // created: Wed Dec  2 17:23:33 2015
-// last saved: <2021-October-12 17:30:52>
+// last saved: <2021-October-12 17:53:15>
 
 /* global process console Buffer */
 /* jshint node:true, esversion:9, strict:implied */
@@ -627,7 +627,8 @@ function getAudits(ctx) {
   // curl -i -n "https://api.enterprise.apigee.com/v1/audits/organizations/ORG1?endTime=1449105607514&expand=true&startTime=1446513607514"
 
   if (gStatus.nCycles > 0) {
-    lookbackInterval = gConfig.sleepTime + oneMinuteInMilliseconds;
+    lookbackInterval = timeResolver.timeIntervalToMilliseconds(gConfig.sleepTime) + oneMinuteInMilliseconds;
+    log.write(3,`getAudits: lookback period: ${lookbackInterval}`);
   }
 
   return setApigeeAuthHeader(ctx)
@@ -685,7 +686,6 @@ function getAudits(ctx) {
         return resolve(ctx);
       });
     }));
-
 }
 
 
@@ -748,7 +748,7 @@ function initialize(opt) {
          org.conn
          .getExistingToken()
            .then( token => {
-             console.log('existing token: ' + util.format(token));
+             //console.log('existing token: ' + util.format(token));
              gConfig.apigeeOrg = org;
              gConfig.apigeeToken = token;
            }))
@@ -806,11 +806,7 @@ function setWakeup(context) {
 }
 
 function validateConfig() {
-  if ( ! gConfig.organization) {
-    console.log('missing configuration: organization');
-    process.exit(1);
-  }
-  // TODO: add more validations here
+  // TODO: add validations here
 }
 
 // ================================================================
@@ -843,8 +839,7 @@ app.listen(port, function() {
   log.write(0, `log level is: ${gStatus.loglevel}`);
   gConfig = JSON.parse(fs.readFileSync(path.join('config', 'config.json'), 'utf8'));
   validateConfig();
-  let args = [ "-o " + gConfig.organization ].concat(process.argv.slice(2));
-  let opt = getopt.parse(args);
+  let opt = getopt.parse(process.argv.slice(2));
   utility.verifyCommonRequiredParameters(opt.options, getopt);
   if (gConfig.hasOwnProperty('loglevel')) {
     gStatus.loglevel = gConfig.loglevel;
